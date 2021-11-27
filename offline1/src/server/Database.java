@@ -1,176 +1,210 @@
 package server;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class Database {
-
+    
     private static final Database instance = new Database();
-    public static Database getInstance() { return instance; }
-
-    private final ArrayList<StudentMap> studentList;
-    private final ArrayList<FileMap> privateFileList;
-    private final ArrayList<FileMap> publicFileList;
-    private final ArrayList<RequestMap> requestList;
-
+    public final Queue<String> fileQueue;
+    private final ArrayList<StudentModel> studentList;
+    private final ArrayList<FileModel> fileList;
+    private final ArrayList<RequestModel> requestList;
+    private int bufferSize;
+    
     private Database() {
-        studentList = new ArrayList<>();
-        privateFileList = new ArrayList<>();
-        publicFileList = new ArrayList<>();
-        requestList = new ArrayList<>();
+        this.fileQueue = new LinkedList<>();
+        this.studentList = new ArrayList<>();
+        this.fileList = new ArrayList<>();
+        this.requestList = new ArrayList<>();
+        this.bufferSize = 0;
     }
-
-    void addStudent(String studentId, Socket socket) {
-        studentList.add(new StudentMap(studentId, true, socket));
+    
+    public static Database get() {
+        return instance;
     }
-
-    StudentMap getStudent(String studentId) {
-        for (StudentMap each : studentList) {
+    
+    int getBuffer() {
+        return this.bufferSize;
+    }
+    
+    void setBuffer(int bufferSize) {
+        this.bufferSize = bufferSize;
+    }
+    
+    boolean isBufferOverflow(int fileSize) {
+        return fileSize + bufferSize > _CONFIG_.MAX_BUFFER_SIZE;
+    }
+    
+    void addStudent(String studentId) {
+        studentList.add(new StudentModel(studentId, true));
+    }
+    
+    StudentModel getStudent(String studentId) {
+        for (StudentModel each : studentList) {
             if (each.studentId.equals(studentId)) {
                 return each;
             }
         }
         return null;
     }
-
+    
     int addRequest(String studentId, String description) {
-        requestList.add(new RequestMap(studentId, description));
+        requestList.add(new RequestModel(studentId, description));
         return requestList.size() - 1;
     }
-
+    
     void addMessage(String studentId, String message) {
         if (getStudent(studentId) != null) {
             getStudent(studentId).messages.add(message);
         }
     }
-
+    
     void addBroadcastMessage(String senderId, String message) {
-        for (StudentMap each : studentList) {
+        for (StudentModel each : studentList) {
             if (!each.studentId.equals(senderId))
                 each.messages.add(message);
         }
     }
-
+    
     ArrayList<String> getMessages(String studentId) {
         if (getStudent(studentId) != null) {
             return getStudent(studentId).messages;
         }
         return new ArrayList<>();
     }
-
+    
     void removeMessages(String studentId) {
         if (getStudent(studentId) != null) {
             getStudent(studentId).messages.clear();
         }
     }
-
+    
     void logoutStudent(String studentId) {
         if (getStudent(studentId) != null) {
             getStudent(studentId).isOnline = false;
         }
     }
-
+    
     boolean isStudentOnline(String studentId) {
         if (getStudent(studentId) != null) {
             return getStudent(studentId).isOnline;
         }
         return false;
     }
-
-    void saveAsPublicFile(byte[] fileContent, String fileName, String studentId) throws IOException {
-        FileOutputStream fos = new FileOutputStream("/files/" + studentId + "/public/" + fileName);
-        fos.write(fileContent);
-        publicFileList.add(new FileMap(studentId, fileName));
+    
+    int saveAsRequestFile(ArrayList<byte[]> fileContent, String fileName, String studentId, int requestId) {
+        int fileId = saveAsFile(fileContent, fileName, "public", studentId);
+        requestList.get(requestId).fileIndexList.add(fileId);
+        
+        String requestStudentId = requestList.get(requestId).studentId;
+        String message = "Student `" + studentId + "` has added a file against your request.\n" +
+                "FileID# " + fileId;
+        addMessage(requestStudentId, message);
+        return fileId;
     }
-
-    void saveAsPrivateFile(byte[] fileContent, String fileName, String studentId) throws IOException {
-        FileOutputStream fos = new FileOutputStream("/files/" + studentId + "/private/" + fileName);
-        fos.write(fileContent);
-        privateFileList.add(new FileMap(studentId, fileName));
+    
+    int saveAsFile(ArrayList<byte[]> fileContent, String fileName, String fileType, String studentId) {
+        try {
+            String filePath = "files/" + studentId + "/" + fileType + "/" + fileName;
+            FileOutputStream fos = new FileOutputStream(filePath, false);
+            for (byte[] each : fileContent) {
+                fos.write(each);
+                fos.flush();
+            }
+            fos.close();
+            fileList.add(new FileModel(studentId, fileName, fileType));
+            return fileList.size() - 1;
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
     }
-
+    
+    
     ArrayList<String> getStudentList(String studentId) {
         ArrayList<String> list = new ArrayList<>();
-        for (StudentMap each : studentList) {
-            if(each.studentId.equals(studentId)) list.add(each.studentId + "\t\t\t" + "[YOU]");
-            else if (each.isOnline)              list.add(each.studentId + "\t\t\t" + "[ONLINE]");
-            else                                 list.add(each.studentId + "\t\t\t");
+        for (StudentModel each : studentList) {
+            if (each.studentId.equals(studentId)) list.add(each.studentId + "\t\t\t" + "[YOU]");
+            else if (each.isOnline) list.add(each.studentId + "\t\t\t" + "[ONLINE]");
+            else list.add(each.studentId + "\t\t\t");
         }
         return list;
     }
-
+    
     ArrayList<String> getFilesList(String ownId, String studentId) {
-        ArrayList<String> fileList = new ArrayList<>();
-        for (int i=0; i < publicFileList.size(); i++) {
-            if (publicFileList.get(i).studentId.equals(studentId)) {
-                fileList.add(i + "\t\t" + publicFileList.get(i).fileName + "\t\t [PUBLIC]");
+        ArrayList<String> returnList = new ArrayList<>();
+        
+        if (!ownId.equals(studentId)) {
+            // others public files
+            for (int i = 0; i < fileList.size(); i++) {
+                if (fileList.get(i).fileType.equals("public")) {
+                    if (fileList.get(i).studentId.equals(studentId)) {
+                        returnList.add(i + "\t\t" + fileList.get(i).fileName + "\t\t[" + fileList.get(i).fileType + "]");
+                    }
+                }
+            }
+            return returnList;
+        }
+        
+        for (int i = 0; i < fileList.size(); i++) {
+            if (fileList.get(i).studentId.equals(ownId)) {
+                returnList.add(i + "\t\t" + fileList.get(i).fileName + "\t\t[" + fileList.get(i).fileType + "]");
             }
         }
-        for (int i=0; i < privateFileList.size(); i++) {
-            if (privateFileList.get(i).studentId.equals(ownId)) {
-                fileList.add(i + "\t\t" + privateFileList.get(i).fileName + "\t\t [PRIVATE]");
-            }
-        }
-        return fileList;
+        return returnList;
     }
-
-    File getPublicFile(int fileId) {
-        String fileName = publicFileList.get(fileId).fileName;
-        String studentId = publicFileList.get(fileId).studentId;
-        try {
-            return new File("/files/" + studentId + "/public/" + fileName);
-        }
-        catch (Exception e) {
+    
+    
+    File getFile(int fileId, String ownId) {
+        String fileName = fileList.get(fileId).fileName;
+        String fileType = fileList.get(fileId).fileType;
+        String ownerId = fileList.get(fileId).studentId;
+        
+        if (fileType.equals("private") && (!ownerId.equals(ownId))) {
             return null;
         }
+        return new File("files/" + ownerId + "/" + fileType + "/" + fileName);
     }
-
-    File getPrivateFile(int fileId, String ownId) {
-        String fileName = privateFileList.get(fileId).fileName;
-        String fileOwnerId = privateFileList.get(fileId).studentId;
-        try {
-            if (!fileOwnerId.equals(ownId)) return null;
-            else return new File("/files/" + ownId + "/private/" + fileName);
+    
+    private static class FileModel {
+        public String studentId;
+        public String fileType;
+        public String fileName;
+        
+        FileModel(String studentId, String fileName, String fileType) {
+            this.fileName = fileName;
+            this.studentId = studentId;
+            this.fileType = fileType;
         }
-        catch (Exception e) {
-            return null;
+    }
+    
+    private static class StudentModel {
+        public String studentId;
+        public boolean isOnline;
+        public ArrayList<String> messages;
+        
+        StudentModel(String studentId, boolean isOnline) {
+            this.studentId = studentId;
+            this.isOnline = isOnline;
+            this.messages = new ArrayList<>();
+        }
+    }
+    
+    private static class RequestModel {
+        public String studentId;
+        public String description;
+        public ArrayList<Integer> fileIndexList;
+        
+        RequestModel(String studentId, String description) {
+            this.studentId = studentId;
+            this.description = description;
+            this.fileIndexList = new ArrayList<>();
         }
     }
 }
 
-class FileMap {
-    public String studentId;
-    public String fileName;
-
-    FileMap(String studentId, String fileName) {
-        this.fileName = fileName;
-        this.studentId = studentId;
-    }
-}
-
-class StudentMap {
-    public String studentId;
-    public boolean isOnline;
-    public Socket socket;
-    public ArrayList<String> messages;
-
-    StudentMap(String studentId, boolean isOnline, Socket socket) {
-        this.studentId = studentId;
-        this.isOnline = isOnline;
-        this.socket = socket;
-        this.messages = new ArrayList<>();
-    }
-}
-
-class RequestMap {
-    public String studentId;
-    public String description;
-    public ArrayList<Integer> fileIndexList;
-
-    RequestMap(String studentId, String description) {
-        this.studentId = studentId;
-        this.description = description;
-        this.fileIndexList = new ArrayList<>();
-    }
-}

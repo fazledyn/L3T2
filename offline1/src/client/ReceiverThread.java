@@ -1,37 +1,39 @@
 package client;
 
-import java.io.*;
-import java.net.*;
+import java.io.DataInputStream;
+import java.net.Socket;
 
 public class ReceiverThread implements Runnable {
-
+    
     public static final String ANSI_RESET = "\u001B[0m";
-    public static final String ANSI_GREEN = "\u001B[32m";
     public static final String ANSI_CYAN = "\u001B[36m";
-
-    private final DataInputStream dis;
-    private final Socket socket;
-
-    ReceiverThread(Socket socket, DataInputStream dis) {
-        this.dis = dis;
-        this.socket = socket;
+    
+    private final Socket fileSocket;
+    private final Socket textSocket;
+    private final DataInputStream tis;
+    
+    ReceiverThread(Socket textSocket, Socket fileSocket, DataInputStream tis) {
+        this.textSocket = textSocket;
+        this.fileSocket = fileSocket;
+        this.tis = tis;
     }
-
+    
     @Override
     public void run() {
-        while (!socket.isClosed()) {
+        while (!textSocket.isClosed()) {
             try {
-                String output = dis.readUTF();
+                String output = tis.readUTF();
                 if (!output.equals("TERMINATE")) {
                     System.out.println(ANSI_CYAN + output + ANSI_RESET);
                 }
                 else {
-                    socket.close();
+                    textSocket.close();
+                    fileSocket.close();
                     System.exit(0);
                 }
             }
             catch (Exception e) {
-                System.err.println(e);
+                e.printStackTrace();
             }
         }
     }

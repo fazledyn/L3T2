@@ -1,37 +1,38 @@
 package server;
 
-import java.net.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 public class Server {
-
-    private ServerSocket ss;
-    private ServerSocket fs;
-
+    
+    private ServerSocket ssText;
+    private ServerSocket ssFile;
+    
     Server() {
         try {
-            ss = new ServerSocket(6666);
-            fs = new ServerSocket(6667);
+            ssText = new ServerSocket(6666);
+            ssFile = new ServerSocket(6667);
         }
         catch (Exception e) {
             System.err.println("PROBLEM > In creating server sockets");
             e.printStackTrace(System.err);
         }
     }
-
+    
     void start() {
-        while (!ss.isClosed()) {
+        while (!ssText.isClosed()) {
             try {
-                Socket socket = ss.accept();
-                Socket fSocket = fs.accept();
-                System.out.println(socket.toString());
-
-                Thread thread = new Thread(new ClientHandlerThread(socket));
-                thread.start();
+                Socket textSocket = ssText.accept();
+                Socket fileSocket = ssFile.accept();
+                
+                Thread clientThread = new Thread(new ClientAuthThread(textSocket, fileSocket));
+                clientThread.start();
             }
             catch (Exception e) {
                 System.err.println("Error in accepting socket from client");
+                break;
             }
         }
     }
-
+    
 }

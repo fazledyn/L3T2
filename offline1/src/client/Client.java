@@ -1,35 +1,46 @@
 package client;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
+import java.util.Scanner;
 
 public class Client {
-
-    private Socket cmdSocket;
+    
+    private Scanner scanner;
+    
+    private Socket textSocket;
+    private DataInputStream tis;
+    private DataOutputStream tos;
+    
     private Socket fileSocket;
-    private DataOutputStream dos;
-    private DataInputStream dis;
-
-    Client() {
+    
+    Client(int textSocketPort, int fileSocketPort) {
         try {
-            this.cmdSocket = new Socket("localhost", 6666);
-            this.fileSocket = new Socket("localhost", 6667);
-            this.dos = new DataOutputStream(this.cmdSocket.getOutputStream());
-            this.dis = new DataInputStream(this.cmdSocket.getInputStream());
+            this.scanner = new Scanner(System.in);
+            
+            this.textSocket = new Socket("localhost", textSocketPort);
+            this.tis = new DataInputStream(textSocket.getInputStream());
+            this.tos = new DataOutputStream(textSocket.getOutputStream());
+            
+            this.fileSocket = new Socket("localhost", fileSocketPort);
         }
         catch (Exception e) {
             System.err.println("Error in creating socket");
         }
     }
-
+    
     void start() {
-        Scanner sc = new Scanner(System.in);
-        System.out.println("Socket: " + cmdSocket.toString());
-
-        Thread senderThread = new Thread(new SenderThread(sc, cmdSocket, dos));
-        Thread receiverThread = new Thread(new ReceiverThread(cmdSocket, dis));
-
+        
+        Thread senderThread = new Thread(new SenderThread(
+                scanner,
+                textSocket, tos,
+                fileSocket
+        ));
+        Thread receiverThread = new Thread(new ReceiverThread(
+                textSocket, fileSocket, tis
+        ));
+        
         senderThread.start();
         receiverThread.start();
     }
