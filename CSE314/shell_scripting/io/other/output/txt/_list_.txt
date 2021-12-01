@@ -1,3 +1,0 @@
-io/dir/anotherdir/file.txt
-io/dir/another/subdir/another_txt.txt
-io/dir/text.txt

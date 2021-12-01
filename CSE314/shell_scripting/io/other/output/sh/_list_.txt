@@ -1,1 +1,0 @@
-io/dir/run.sh
