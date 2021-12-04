@@ -1,5 +1,6 @@
 #include <bits/stdc++.h>
 #include "Node.h"
+
 using namespace std;
 
 int** createBoard(int N) {
@@ -65,10 +66,13 @@ int main () {
     int **goalBoard = getGoalBoard(gridSize);
     int move = 0;
     
+    int heuristic;
+    cin >> heuristic;
+
     priority_queue<Node*, vector<Node*>, Comparator> openList;
     vector<Node*> closedList;
 
-    Node root(board, goalBoard, gridSize, nullptr, 0);
+    Node root(board, goalBoard, gridSize, nullptr, 0, heuristic);
 
     Node *finalBoard;
     openList.push(&root);
@@ -77,6 +81,9 @@ int main () {
         cout << "Puzzle not solveable" << endl;
         return 0;
     }
+    else {
+        cout << "Solveable" << endl;
+    }
 
     while (!openList.empty()) {
 
@@ -84,15 +91,15 @@ int main () {
         openList.pop();
 
         if (!inClosedList(closedList, current)) {
-        
+            
+            closedList.push_back(current);
+            vector<Node*> children = current->makeChildren();
+            
             if (current->isSameBoard(goalBoard)) {
                 finalBoard = current;
                 cout << "\nSolution has been found!\n";
                 break;
             }
-            
-            closedList.push_back(current);
-            vector<Node*> children = current->makeChildren();
             
             for (int i=0; i < children.size(); i++) {
                 bool nodeNotIn = true;
@@ -113,7 +120,7 @@ int main () {
     printSolution(finalBoard);
 
     cout << "Optimal Cost: " << finalBoard->getMove() << endl;
-    cout << "Expanded #: " << closedList.size() << endl;
+    cout << "Expanded #: " << closedList.size() -1 << endl;
     cout << "Explored #: " << openList.size() + closedList.size() << endl;
 
     return 0;

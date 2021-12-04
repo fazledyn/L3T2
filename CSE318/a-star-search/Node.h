@@ -9,6 +9,8 @@ class Node {
     int **board, **goalBoard;
     int gridSize;
     int move;
+    int cost;
+    int heuristic;
     int puzzleSize;
 
     Node *parent;
@@ -35,13 +37,14 @@ public:
     // friend bool operator <(Node&, Node&);
     // friend bool operator >(Node&, Node&);
 
-    Node(int **_board, int **_goalBoard, int _gridSize, Node *_parent, int _move) {
+    Node(int **_board, int **_goalBoard, int _gridSize, Node *_parent, int _move, int _heurisic) {
         this->board = _board;
         this->goalBoard = _goalBoard;
         this->gridSize = _gridSize;
         this->puzzleSize = _gridSize*_gridSize;
         this->parent = _parent;
         this->move = _move;
+        this->heuristic = _heurisic;
 
         boardPosition = new int*[this->puzzleSize];
         goalPosition  = new int*[this->puzzleSize];
@@ -51,6 +54,11 @@ public:
             goalPosition[i] = new int[2];
         }
         updatePosition();
+        calculateCost();
+    }
+
+    int getCost() {
+        return this->cost;
     }
 
     int getMove() {
@@ -95,7 +103,7 @@ public:
 
             if ((parent == nullptr) || !(parent->isSameBoard(childBoard))) {
                 Node *child;
-                child = new Node(childBoard, goalBoard, gridSize, this, move + 1);
+                child = new Node(childBoard, goalBoard, gridSize, this, move + 1, heuristic);
                 childList.push_back(child);
             }
         }
@@ -108,7 +116,7 @@ public:
 
             if ((parent == nullptr) || !(parent->isSameBoard(childBoard))) {
                 Node *child;
-                child = new Node(childBoard, goalBoard, gridSize, this, move + 1);
+                child = new Node(childBoard, goalBoard, gridSize, this, move + 1, heuristic);
                 childList.push_back(child);
             }
         }
@@ -121,7 +129,7 @@ public:
 
             if ((parent == nullptr) || !(parent->isSameBoard(childBoard))) {
                 Node *child;
-                child = new Node(childBoard, goalBoard, gridSize, this, move + 1);
+                child = new Node(childBoard, goalBoard, gridSize, this, move + 1, heuristic);
                 childList.push_back(child);
             }
         }
@@ -134,7 +142,7 @@ public:
     
             if ((parent == nullptr) || !(parent->isSameBoard(childBoard))) {
                 Node *child;
-                child = new Node(childBoard, goalBoard, gridSize, this, move + 1);
+                child = new Node(childBoard, goalBoard, gridSize, this, move + 1, heuristic);
                 childList.push_back(child);
             }
         }
@@ -183,6 +191,27 @@ public:
             }
         }
         return count;
+    }
+
+    void calculateCost() {
+        switch (this->heuristic){
+            case 1: {
+                this->cost = this->move + this->getHammingCost();
+                break;
+            }
+            case 2: {
+                this->cost = this->move + this->getManhattanCost();
+                break;
+            }
+            case 3: {
+                this->cost = this->move + this->getManhattanCost() + 2*this->getLinearConflict();
+                break;
+            }
+            default: {
+                cout << "Invalid Heuristic" << endl;
+                exit(1);
+            }
+        }
     }
 
     bool isSameBoard(int **another) {
@@ -297,8 +326,8 @@ public:
 */
 
 struct Comparator {
-    bool operator()(Node *a, Node *b) const {
-        return a->getMove() + a->getHammingCost() > b->getMove() + b->getHammingCost();
+    bool operator()(Node* left, Node* right) const {
+        return left->getCost() > right->getCost();
     }
 };
 
