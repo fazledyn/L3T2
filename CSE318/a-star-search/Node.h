@@ -190,6 +190,22 @@ public:
                 }
             }
         }
+
+        for (int j=0; j < gridSize; j++) {
+            for (int i=0; i < gridSize; i++) {
+                for (int k=i+1; k < gridSize; k++) {
+                    if (boardPosition[ board[i][j] ][1] == goalPosition[ board[i][j] ][1]) {    // If up   where should be
+                        if (boardPosition[ board[k][j] ][1] == goalPosition[ board[k][j] ][1]) {// If down where should be
+                            if (board[i][j] > board[k][j]) {                            // If up > down
+                                if (board[k][j] != 0){                                  // If down != 0
+                                    count++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         return count;
     }
 
