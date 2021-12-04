@@ -38,7 +38,6 @@ int** getGoalBoard(int N) {
 
 void printSolution(Node* self) {
     if (self == nullptr) {
-        cout << "nullptr\n";
         return;
     }
     printSolution(self->getParent());
@@ -73,16 +72,15 @@ int main () {
     vector<Node*> closedList;
 
     Node root(board, goalBoard, gridSize, nullptr, 0, heuristic);
-
     Node *finalBoard;
     openList.push(&root);
 
     if (!root.isSolveable()) {
-        cout << "Puzzle not solveable" << endl;
+        cout << "Puzzle not solveable\n";
         return 0;
     }
     else {
-        cout << "Solveable" << endl;
+        cout << "Puzzle is solveable\n";
     }
 
     while (!openList.empty()) {
@@ -97,7 +95,7 @@ int main () {
             
             if (current->isSameBoard(goalBoard)) {
                 finalBoard = current;
-                cout << "\nSolution has been found!\n";
+                cout << "Solution has been found!\n";
                 break;
             }
             
@@ -117,11 +115,12 @@ int main () {
         }   
     }
 
+    cout << "Solution: \n";
     printSolution(finalBoard);
 
-    cout << "Optimal Cost: " << finalBoard->getMove() << endl;
-    cout << "Expanded #: " << closedList.size() -1 << endl;
-    cout << "Explored #: " << openList.size() + closedList.size() << endl;
+    cout << "\nOptimal Cost: " << finalBoard->getMove();
+    cout << "\nExpanded Nodes: " << closedList.size() -1;
+    cout << "\nExplored Nodes: " << openList.size() + closedList.size();
 
     return 0;
 }
