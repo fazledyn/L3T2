@@ -1,0 +1,5 @@
+sub1/new
+folder/file2
+sub1/new
+sub1/new
+folder/file1
