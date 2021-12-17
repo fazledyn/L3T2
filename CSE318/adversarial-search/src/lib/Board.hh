@@ -10,21 +10,17 @@ using namespace std;
 
 class Board {
 
-    int* pit[2];
+    int pit[2][N_PITS];
     int storage[2];
 
 public:
     Board() {
         for (int i=0; i < 2; i++) {
-            pit[i] = new int[N_PITS];
             for (int j=0; j < N_PITS; j++) {
                 pit[i][j] = N_BEADS;
             }
             storage[i] = 0;
         }
-    }
-
-    ~Board() {
     }
 
     void makeCopy(Board board) {
@@ -36,18 +32,8 @@ public:
         }
     }
 
-    Board(const Board& board) {
-        for (int i=0; i < 2; i++) {
-            pit[i] = new int[N_PITS];
-            for (int j=0; j < N_PITS; j++) {
-                pit[i][j] = board.pit[i][j];
-            }
-            storage[i] = board.storage[i];
-        }
-    }
-
-    int** getPit() {
-        return pit;
+    int getPit(int i, int j) {
+        return pit[i][j];
     }
 
     int* getStorage() {

@@ -13,22 +13,28 @@ class Player {
     int heuristic;
     int extraMoves;
     int mode;
+    int DEPTH;
 
-    int calculateCost(Board board) {
+    int calculateCost(Board board, Board oldBoard) {
         switch (heuristic) {
             case HEU_STORAGE:
                 return heurStorage(id, board);
-            case HEU_STORAGE_PITS:
+            case HEU_S_PITS:
                 return heurStoragePits(id, board);
-            case HEU_STORAGE_PITS_MOVES:
+            case HEU_SP_MOVES:
                 return heurStoragePitsMove(id, extraMoves, board);
+            case HEU_SPM_CLOSEWIN:
+                return heurCloseToWinning(id, extraMoves, board);
+            case HEU_SPMC_CAPTURED:
+                return heurCaptured(id, extraMoves, board, oldBoard);
+            
             default:
                 return 0;
         }
     }
 
     // Minimize beta, Maximize Alpha
-    int minimaxAlgorithm(Board board, bool isMax, int depthToGo, int alpha, int beta) {
+    int minimaxAlgorithm(Board board, Board oldBoard, bool isMax, int depthToGo, int alpha, int beta) {
 
         if (board.gameIsOver()) {
             if (board.getWinner() == id) { 
@@ -36,12 +42,12 @@ class Player {
             } else if (board.getWinner() == 1 - id) {
                 return INT_MIN/2;
             } else {
-                return calculateCost(board);
+                return calculateCost(board, oldBoard);
             }
         }
 
         if (depthToGo == 0) {
-            return calculateCost(board);
+            return calculateCost(board, oldBoard);
         }
 
         Board _board;
@@ -50,22 +56,37 @@ class Player {
         if (isMax) {
             int bestValue = INT_MIN;
             int succesor = -1;
+            // ******************** Move Ordering Stuff ********************
+            // *************************************************************
+            vector<int> moveTracker, moveTrackerRest;
             for (int i=0; i < N_PITS; i++) {
-                if (board.getPit()[id][i] > 0) {
+                if (board.getPit(id, i) + i == N_PITS) {
+                    moveTracker.push_back(i);
+                }
+                else {
+                    moveTrackerRest.push_back(i);
+                }
+            }
 
-                    // printGreen(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>> " + to_string(i));
-                    // board.printBoard();
-                    int nextPlayer = board.makeMove(id, i);
-                    // board.printBoard();
-                    // printGreen(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>> " + to_string(i));
+            for (int i=0; i < moveTrackerRest.size(); i++) {
+                moveTracker.push_back(moveTrackerRest.at(i));
+            }
+            // *************************************************************
+            // *************************************************************
+
+            for (int i=0; i < N_PITS; i++) {
+                int currentMove = moveTracker.at(i);
+
+                if (board.getPit(id, currentMove) > 0) {
+                    int nextPlayer = board.makeMove(id, currentMove);
                     int currentVal;
 
                     if (nextPlayer == id) {
                         extraMoves++;
-                        currentVal = minimaxAlgorithm(board, true, depthToGo - 1, alpha, beta);
+                        currentVal = minimaxAlgorithm(board, _board, true, depthToGo - 1, alpha, beta);
                         extraMoves--;
                     } else {
-                        currentVal = minimaxAlgorithm(board, false, depthToGo - 1, alpha, beta);
+                        currentVal = minimaxAlgorithm(board, _board, false, depthToGo - 1, alpha, beta);
                     }
 
                     // cout << "Current value: " << currentVal << endl;
@@ -73,7 +94,7 @@ class Player {
                        
                     if (currentVal > bestValue) { 
                         bestValue = currentVal;
-                        succesor = i;
+                        succesor = currentMove;
                     }
 
                     alpha = max(alpha, bestValue);
@@ -87,25 +108,45 @@ class Player {
                     // board.printBoard();
                 }
             }
-            if (depthToGo == MINIMAX_DEPTH) {
+            if (depthToGo == DEPTH) {
                 return succesor;
             } else {
                 return bestValue;
             }
         }
         else {
+            // ******************** Move Ordering Stuff ********************
+            // *************************************************************
+            vector<int> moveTracker, moveTrackerRest;
+            for (int i=0; i < N_PITS; i++) {
+                if (board.getPit(id, i) + i == N_PITS) {
+                    moveTracker.push_back(i);
+                }
+                else {
+                    moveTrackerRest.push_back(i);
+                }
+            }
+
+            for (int i=0; i < moveTrackerRest.size(); i++) {
+                moveTracker.push_back(moveTrackerRest.at(i));
+            }
+            // *************************************************************
+            // *************************************************************
+
             int bestValue = INT_MAX;
             for (int i = 0; i < N_PITS; i++) {
-                if (board.getPit()[1 - id][i] > 0) {
-                    int nextPlayer = board.makeMove(1 - id, i);
+                int currentMove = moveTracker.at(i);
+
+                if (board.getPit(1-id, currentMove) > 0) {
+                    int nextPlayer = board.makeMove(1 - id, currentMove);
                     int currentVal;
 
                     if (nextPlayer == 1 - id) {
                         extraMoves--;
-                        currentVal = minimaxAlgorithm(board, false, depthToGo - 1, alpha, beta);
+                        currentVal = minimaxAlgorithm(board, _board, false, depthToGo - 1, alpha, beta);
                         extraMoves++;
                     } else {
-                        currentVal = minimaxAlgorithm(board, true, depthToGo - 1, alpha, beta);
+                        currentVal = minimaxAlgorithm(board, _board, true, depthToGo - 1, alpha, beta);
                     }
 
                     if (currentVal < bestValue) {
@@ -131,11 +172,12 @@ class Player {
     }
 
 public:
-    Player(int _id, int _heuristic, int _mode) {
+    Player(int _id, int _heuristic, int _mode, int _depth) {
         id = _id;
         mode = _mode;
         extraMoves = 0;
         heuristic = _heuristic;
+        DEPTH = _depth;
     }
 
     int getId() { return id; }
@@ -144,7 +186,8 @@ public:
     int makeMove(Board board) {
         switch(mode) {
             case MODE_MINIMAX: {
-                int move = minimaxAlgorithm(board, true, MINIMAX_DEPTH, INT_MIN, INT_MAX);
+                extraMoves = 0;
+                int move = minimaxAlgorithm(board, board, true, DEPTH, INT_MIN, INT_MAX);
                 printYellow("Player " + to_string(id + 1) + "'s move: " + to_string(move));
                 return move;
             }

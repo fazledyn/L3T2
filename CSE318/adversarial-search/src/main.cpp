@@ -10,8 +10,8 @@ using namespace std;
 int main() {
 
 	Board board;
-	Player player1(0, HEU_STORAGE_PITS_MOVES, MODE_MINIMAX);
-	Player player2(1, HEU_STORAGE_PITS_MOVES, MODE_MINIMAX);
+	Player player1(0, HEU_SPM_CLOSEWIN, MODE_MINIMAX, 3);
+	Player player2(1, HEU_SPM_CLOSEWIN, MODE_MINIMAX, 6);
 
 	int turn = 0, prevTurn = -1;
 	int move;
@@ -38,9 +38,15 @@ int main() {
 		turn = board.makeMove(turn, move);
 		board.printBoard();
 	}
-
-	printBlue("\nGame over");
-	printBlue("\nWinner: Player #" + to_string(board.getWinner() + 1));
 	
+	int winner = board.getWinner();
+	if (winner == -1) {
+		printBlue("\nGame Over. Draw");
+	}
+	else {
+		printBlue("\nGame over");
+		printBlue("\nWinner: Player #" + to_string(winner + 1));
+	}
+
 	return 0;
 }
