@@ -1,8 +1,10 @@
+#include <iostream>
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <chrono>
+#include <random>
 
-#include "bits/stdc++.h"
 using namespace std;
 using namespace std::chrono;
 
@@ -13,33 +15,33 @@ using namespace std::chrono;
 default_random_engine generator;
 poisson_distribution<int> distribution(4.1);
 
-int N_KIOSK, N_BELT, N_BELTCAP;
-int T_CHECKIN, T_SECURITY, T_BOARDING, T_VIPWALK;
-
 int lrCount = 0, rlCount = 0;
-pthread_mutex_t lr_mutex, rl_mutex;
+pthread_mutex_t mutex_lrCount, mutex_rlCount;
+
+bool* kioskIsFree;
+pthread_mutex_t mutex_kiosk;
+
+int* securityBeltSize;
+pthread_mutex_t mutex_belt;
+pthread_mutex_t mutex_vipChannel;
+pthread_mutex_t mutex_vipChannelAvailable;
+pthread_mutex_t mutex_specialKiosk;
+pthread_mutex_t mutex_boarding;
 
 sem_t sem_availableKiosk;
 sem_t sem_availableBelt;
 
-pthread_mutex_t mutex_kiosk;
-pthread_mutex_t mutex_belt;
-pthread_mutex_t mutex_vipChannel;
-pthread_mutex_t mutex_specialKiosk;
-pthread_mutex_t mutex_boarding;
-
-bool* kioskIsFree;
-int* securityBeltSize;
-
 timestamp initialTime;
+int N_KIOSK, N_BELT, N_BELTCAP;
+int T_CHECKIN, T_SECURITY, T_BOARDING, T_VIPWALK;
 
 /* ************************* */
 void checkIn(int id);
 void visitSpecialKiosk(int id, bool isVip, int time, timestamp lastTime);
-void useVIPWalk(int id, bool isVip, int time, timestamp lastTime);
+void useVIPChannel(int id, bool isVip, int time, timestamp lastTime);
 /* ************************* */
 
-
+/***** Helper Functions ******/
 void printOut(int id, bool isVip, string description, int time) {
     string msg;
     if (isVip)  msg = "Passenger " + to_string(id) + " (VIP) " + description + " at time " + to_string(time) + "\n";
@@ -50,7 +52,7 @@ void printOut(int id, bool isVip, string description, int time) {
 int findSecurityBelt() {
     for (int i = 0; i < N_BELT; i++) {
         if (securityBeltSize[i] < N_BELTCAP) {
-            return i;
+            return i+1;
         }
     }
     return -1;
@@ -59,11 +61,13 @@ int findSecurityBelt() {
 int findFreeKiosk() {
     for (int i = 0; i < N_KIOSK; i++) {
         if (kioskIsFree[i]) {
-            return i;
+            return i+1;
         }
     }
     return -1;
 }
+/* ************************* */
+/* ************************* */
 
 void boardPlane(int id, bool isVip, int time, timestamp lastTime) {
     bool isCareless = (rand() % 2 == 0);
@@ -76,12 +80,12 @@ void boardPlane(int id, bool isVip, int time, timestamp lastTime) {
 
         pthread_mutex_lock(&mutex_boarding);
             time += get_seconds(current_time(), lastTime);
-            printOut(id, isVip, "has started boarding the plane", time);
 
+            printOut(id, isVip, "has started boarding the plane", time);
             sleep(T_BOARDING);
             time += T_BOARDING;
-
             printOut(id, isVip, "has boarded the plane", time);
+
         pthread_mutex_unlock(&mutex_boarding);
     }
 }
@@ -100,11 +104,10 @@ void checkSecurity(int id, bool isVip, int time, timestamp lastTime) {
         pthread_mutex_unlock(&mutex_belt);
 
         time += get_seconds(current_time(), waitingTime);
-        printOut(id, isVip, "has started the security check in belt " + to_string(belt), time);
 
+        printOut(id, isVip, "has started the security check in belt " + to_string(belt), time);
         sleep(T_SECURITY);
         time += T_SECURITY;
-
         printOut(id, isVip, "has finished the security check", time);
 
         pthread_mutex_lock(&mutex_belt);
@@ -117,68 +120,71 @@ void checkSecurity(int id, bool isVip, int time, timestamp lastTime) {
 
 void visitSpecialKiosk(int id, bool isVip, int time, timestamp lastTime) {
 
-    printOut(id, isVip, "is waiting to access VIP channel to visit special kiosk", time);
+    printOut(id, isVip, "is waiting to use the VIP channel to visit special kiosk", time);
+    pthread_mutex_lock(&mutex_vipChannelAvailable);
+    pthread_mutex_unlock(&mutex_vipChannelAvailable);
 
-    pthread_mutex_lock(&mutex_vipChannel);
-    // cout << "mutex_vipChannel is locked\n";
+    pthread_mutex_lock(&mutex_rlCount);
+        if (rlCount == 0) {
+            pthread_mutex_lock(&mutex_vipChannel);
+        }
+        rlCount++;
+    pthread_mutex_unlock(&mutex_rlCount);
 
-        time += get_seconds(current_time(), lastTime);
-        printOut(id, isVip, "has got on the VIP channel to visit special kiosk", time);
+    time += get_seconds(current_time(), lastTime);
 
-        sleep(T_VIPWALK);
-        time += T_VIPWALK;
+    printOut(id, isVip, "got on the VIP channel to visit special kiosk", time);
+    sleep(T_VIPWALK);
+    time += T_VIPWALK;
+    printOut(id, isVip, "got off the VIP channel and waiting to use special kiosk", time);
 
-        printOut(id, isVip, "has reached and waiting to use special kiosk", time);
-
-    pthread_mutex_unlock(&mutex_vipChannel);
-    // cout << "mutex_vipChannel is unlocked\n";
+    pthread_mutex_lock(&mutex_rlCount);
+        rlCount--;
+        if (rlCount == 0) {
+            pthread_mutex_unlock(&mutex_vipChannel);
+        }
+    pthread_mutex_unlock(&mutex_rlCount);
 
     timestamp waitingTime = current_time();
     pthread_mutex_lock(&mutex_specialKiosk);
 
-        time += get_seconds(current_time(), waitingTime);
-        printOut(id, isVip, "has started using the special kiosk", time);
+    time += get_seconds(current_time(), waitingTime);
 
-        sleep(T_CHECKIN);
-        time += T_CHECKIN;
-
-        printOut(id, isVip, "has finished using the special kiosk", time);
+    printOut(id, isVip, "has started using the special kiosk", time);
+    sleep(T_CHECKIN);
+    time += T_CHECKIN;
+    printOut(id, isVip, "has finished using the special kiosk", time);
 
     pthread_mutex_unlock(&mutex_specialKiosk);
-    useVIPWalk(id, isVip, time, current_time());
+    useVIPChannel(id, isVip, time, current_time());
 }
 
-void useVIPWalk(int id, bool isVip, int time, timestamp lastTime) {
+void useVIPChannel(int id, bool isVip, int time, timestamp lastTime) {
     
     printOut(id, isVip, "is waiting to use the VIP channel to reach boarding", time);
 
-    pthread_mutex_lock(&lr_mutex);
-        // msg = "lrCount(before ++): " + to_string(lrCount) + "\n";
-        // cout << msg;
+    pthread_mutex_lock(&mutex_lrCount);
         if (lrCount == 0) {
+            pthread_mutex_lock(&mutex_vipChannelAvailable);
             pthread_mutex_lock(&mutex_vipChannel);
-            // cout << "mutex_vipChannel is locked\n";
         }
         lrCount++;
-    pthread_mutex_unlock(&lr_mutex);
+    pthread_mutex_unlock(&mutex_lrCount);
 
     time += get_seconds(current_time(), lastTime);
-    printOut(id, isVip, "has got on the VIP channel to reach boarding", time);
-    
+
+    printOut(id, isVip, "got on the VIP channel to reach boarding", time);
     sleep(T_VIPWALK);
     time += T_VIPWALK;
+    printOut(id, isVip, "got off the VIP channel and reached boarding", time);
 
-    printOut(id, isVip, "has used the VIP channel to reach boarding", time);
-
-    pthread_mutex_lock(&lr_mutex);
+    pthread_mutex_lock(&mutex_lrCount);
         lrCount--;
         if (lrCount == 0) {
             pthread_mutex_unlock(&mutex_vipChannel);
-            // cout << "mutex_vipChannel is unlocked\n";
+            pthread_mutex_unlock(&mutex_vipChannelAvailable);
         }
-        // msg = "lrCount(after--): " + to_string(lrCount) + "\n";
-        // cout << msg;
-    pthread_mutex_unlock(&lr_mutex);
+    pthread_mutex_unlock(&mutex_lrCount);
     boardPlane(id, isVip, time, current_time());
 }
 
@@ -191,11 +197,10 @@ void checkIn(int id, bool isVip, int time, timestamp lastTime) {
         pthread_mutex_unlock(&mutex_kiosk);
 
         time += get_seconds(current_time(), lastTime);
-        printOut(id, isVip, "has started self-check in at kiosk " + to_string(kiosk), time);
 
+        printOut(id, isVip, "has started self-check in at kiosk " + to_string(kiosk), time);
         sleep(T_CHECKIN);
         time += T_CHECKIN;
-
         printOut(id, isVip, "has finished self-check in at kiosk " + to_string(kiosk), time);
 
         pthread_mutex_lock(&mutex_kiosk);
@@ -204,7 +209,7 @@ void checkIn(int id, bool isVip, int time, timestamp lastTime) {
 
     sem_post(&sem_availableKiosk);
 
-    if (isVip)  useVIPWalk(id, isVip, time, current_time());
+    if (isVip)  useVIPChannel(id, isVip, time, current_time());
     else        checkSecurity(id, isVip, time, current_time());
 }
 
@@ -238,37 +243,57 @@ int main() {
     fill(securityBeltSize, securityBeltSize + N_BELT, 0);
 
     /*  Mutex and Sem Initialization */
-    /*********************************/
-
     pthread_mutex_init(&mutex_belt, NULL);
     pthread_mutex_init(&mutex_kiosk, NULL);
     pthread_mutex_init(&mutex_vipChannel, NULL);
+    pthread_mutex_init(&mutex_vipChannelAvailable, NULL);
     pthread_mutex_init(&mutex_specialKiosk, NULL);
     pthread_mutex_init(&mutex_boarding, NULL);
-
-    pthread_mutex_init(&lr_mutex, NULL);
-    pthread_mutex_init(&rl_mutex, NULL);
+    pthread_mutex_init(&mutex_lrCount, NULL);
+    pthread_mutex_init(&mutex_rlCount, NULL);
 
     sem_init(&sem_availableKiosk, 0, N_KIOSK);
     sem_init(&sem_availableBelt,  0, N_BELT * N_BELTCAP);
+    /*********************************/
 
-    initialTime = current_time();                           //  global variable
+    #define INTERVAL_TIME   3   //  Interval between different batches of passenger in seconds
+    #define PASSENGER_BATCH 3   //  Total number of passenger batch
 
-    int ret;
-    pthread_t customer[10];
-    for (int i = 0; i < 10; i++) {
-        int* id = new int(i+1);
-        ret = pthread_create(&customer[i], NULL, arriveAirport, (void*)id);
+    int ret;                        //  To read the return value from each `pthread` methods
+    int passengerCount = 0;         //  Total count of passengers for uniquely identifying
+    initialTime = current_time();   //  Initial timestamp to determine program startup time (GLOBAL)
 
-        if (ret != 0) {
-            cout << "Error: pthread_create()\n";
-            exit(EXIT_FAILURE);
+    for (int i=0; i < PASSENGER_BATCH; i++) {
+        int batchCount = distribution(generator);
+        pthread_t passenger[batchCount];
+
+        for (int j=0; j < batchCount; j++) {
+            int* id = new int(passengerCount + 1);
+            ret = pthread_create(&passenger[j], NULL, arriveAirport, (void*)id);
+            if (ret != 0)   cout << "Error: pthread_create() failed\n";
+            passengerCount++;
         }
+        
+        for (int j=0; j < batchCount; j++) {
+            ret = pthread_join(passenger[j], NULL);
+            if (ret != 0)   cout << "Error: pthead_join() failed\n";
+        }
+        sleep(INTERVAL_TIME);
     }
 
-    for (int i = 0; i < 10; i++) {
-        pthread_join(customer[i], NULL);
-    }
+    /*      Mutex and Sem Destroy      */
+    pthread_mutex_destroy(&mutex_belt);
+    pthread_mutex_destroy(&mutex_kiosk);
+    pthread_mutex_destroy(&mutex_vipChannel);
+    pthread_mutex_destroy(&mutex_vipChannelAvailable);
+    pthread_mutex_destroy(&mutex_specialKiosk);
+    pthread_mutex_destroy(&mutex_boarding);
+    pthread_mutex_destroy(&mutex_lrCount);
+    pthread_mutex_destroy(&mutex_rlCount);
+
+    sem_destroy(&sem_availableBelt);
+    sem_destroy(&sem_availableBelt);
+    /**********************************/
 
     return 0;
 }
