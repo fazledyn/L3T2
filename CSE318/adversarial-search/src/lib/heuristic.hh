@@ -5,13 +5,13 @@
 #include "constant.hh"
 
 
-// 1
+// 1 - Specs
 // stones_in_my_storage - stones_in_opponent_storage    
 int heurStorage(int myId, Board board) {
     return board.getStorage()[myId] - board.getStorage()[1 - myId];
 }
 
-// 2
+// 2 - Specs
 // W1 * (stones_in_my_storage – stones_in_opponents_storage) +
 // W2 * (stones_on_my_side – stones_on_opponents_side)
 int heurStoragePits(int myId, Board board) {
@@ -24,7 +24,7 @@ int heurStoragePits(int myId, Board board) {
     return W_STORAGE * heurStorage(myId, board) + W_PITS * (myPit - opponentPit);
 }
 
-// 3
+// 3 - Specs
 // (stones_in_my_storage – stones_in_opponents_storage) +
 // (stones_on_my_side – stones_on_opponents_side) +
 // (additional_move_earned)
@@ -33,18 +33,15 @@ int heurStoragePitsMove(int myId, int extraMoves, Board board) {
 }
 
 // 4
-// previous heuristic +
 // how close I am to winning
-int heurCloseToWinning(int myId, int extraMove, Board board) {
+int heurCloseToWinning(int myId, Board board) {
     int HALF_BEADS = N_PITS * N_BEADS;
-    float storagePercent = board.getStorage()[myId] / HALF_BEADS;
-    return heurStoragePitsMove(myId, extraMove, board) + floor(W_CLOSE_TO_WIN * storagePercent);
+    return floor(100 * board.getStorage()[myId] / HALF_BEADS);
 }
 
 // 5
-// previous heuristic + 
-// how_many_i_captured
-int heurCaptured(int myId, int extraMove, Board board, Board oldBoard) {
+// How many I have captured in the last move
+int heurCaptured(int myId, Board board, Board oldBoard) {
     int captured = 0;
     for (int i=0; i < N_PITS; i++) {
         if (oldBoard.getPit(myId, i) == 0) {
@@ -57,7 +54,29 @@ int heurCaptured(int myId, int extraMove, Board board, Board oldBoard) {
             }
         }
     }
-    return heurCloseToWinning(myId, extraMove, board) + W_CAPTURED * captured;
+    return W_CAPTURED * captured;
+}
+
+// 6
+// How many moves that can lead to a bonus move
+int heurPossibleExtraMoves(int myId, Board board) {
+    int moves = 0;
+    for (int i=0; i < N_PITS; i++) {
+        if (board.getPit(myId, i) + i == N_PITS) {
+            moves++;
+        }
+    }
+    return W_POSSIBLE_EXTRA_MOVES * moves;
+}
+
+// ############# MEGA HEURISTIC ################
+// #############################################
+
+// 7
+// SPM + CAPTURED + ADDITIONAL_MOVES + CLOSEWIN
+int heurMega(int myId, int extraMoves, Board board, Board oldBoard) {
+    return heurStoragePitsMove(myId, extraMoves, board) + heurCaptured(myId, board, oldBoard) \
+    + heurPossibleExtraMoves(myId, board) + heurCloseToWinning(myId, board);
 }
 
 #endif

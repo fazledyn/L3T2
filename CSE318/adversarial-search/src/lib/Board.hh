@@ -40,6 +40,17 @@ public:
         return storage;
     }
 
+    bool isValid() {
+        int count = 0;
+        for (int i=0; i < 2; i++) {
+            for (int j=0; j < N_PITS; j++) {
+                count += pit[i][j];
+            }
+            count += storage[i];
+        }
+        return (count == N_PITS * N_BEADS * 2);
+    }
+
     /*
         Board makes a move as a player and
         return the next player's turn 
@@ -88,7 +99,7 @@ public:
                 beadsLeft--;
 
                 if ((beadsLeft == 0) && (pit[playerId][i] == 1)) {
-                    if (pit[opponentId][N_PITS - i + 1] > 0) {
+                    if (pit[opponentId][N_PITS - i - 1] > 0) {
                         storage[playerId] += pit[opponentId][N_PITS - i - 1];
                         storage[playerId] += 1;
                         pit[opponentId][N_PITS - i - 1] = 0;
@@ -117,6 +128,15 @@ public:
             if (beadsLeft > 0) {
                 pit[playerId][i] += 1;
                 beadsLeft--;
+                
+                if ((beadsLeft == 0) && (pit[playerId][i] == 1)) {
+                    if (pit[opponentId][N_PITS - i - 1] > 0) {
+                        storage[playerId] += pit[opponentId][N_PITS - i - 1];
+                        storage[playerId] += 1;
+                        pit[opponentId][N_PITS - i - 1] = 0;
+                        pit[playerId][i] = 0;
+                    }
+                }
             }
         }
         return nextPlayer;

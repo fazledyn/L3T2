@@ -17,17 +17,22 @@ class Player {
 
     int calculateCost(Board board, Board oldBoard) {
         switch (heuristic) {
+
             case HEU_STORAGE:
                 return heurStorage(id, board);
             case HEU_S_PITS:
                 return heurStoragePits(id, board);
             case HEU_SP_MOVES:
                 return heurStoragePitsMove(id, extraMoves, board);
-            case HEU_SPM_CLOSEWIN:
-                return heurCloseToWinning(id, extraMoves, board);
-            case HEU_SPMC_CAPTURED:
-                return heurCaptured(id, extraMoves, board, oldBoard);
-            
+            case HEU_CLOSEWIN:
+                return heurCloseToWinning(id, board);
+            case HEU_CAPTURED:
+                return heurCaptured(id, board, oldBoard);
+            case HEU_POSSIBLE_EXTRA_MOVES:
+                return heurPossibleExtraMoves(id, board);
+            case HEU_MEGA:
+                return heurMega(id, extraMoves, board, oldBoard);
+                
             default:
                 return 0;
         }
