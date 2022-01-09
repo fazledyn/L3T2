@@ -18,7 +18,4 @@ A game agent has been implemented to solve the problem. The agent has several he
 ### Game Mode
 The implemented program contains three basic game modes, such as-
 - Minimax Algorithm
-- Iterative Deepening
 - Human Input
-
-### Findings
