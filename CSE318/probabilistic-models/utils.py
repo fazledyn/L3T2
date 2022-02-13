@@ -19,13 +19,22 @@ def print_menu():
 
 def print_grid(grid):
     N_ROW, N_COL = len(grid), len(grid[0])
+
+    print("-" * 10 * N_COL)
+    print("\t", end="")
+    for col in range(N_COL):
+        print(col, end="\t")
+    print()
+
     for row in range(N_ROW):
+        print(row, end="\t")
         for col in range(N_COL):
             if grid[row][col] == -1:
-                print("X", end="\t")
+                print("-", end="\t")
             else:
                 print(round(grid[row][col], 4), end="\t")
         print()
+    print("-" * 10 * N_COL)
     print()
 
 def get_edge_cells(grid, row, col):
